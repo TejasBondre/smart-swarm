@@ -1,14 +1,39 @@
+/* This is a version without GLM library */
+/* since Garima is having some issues with GLM on her machine */
+
 #include <vector>
 #include <GL/glut.h>
-#include <glm/glm.hpp>
 #include "math.h"
 #include <iostream>
 
+//#include <glm/glm.hpp>
+//using namespace glm;
 using namespace std;
-using namespace glm;
+
+class dvec3{
+  public:
+    double x, y, z;
+    dvec3() { x=0.0; y=0.0; z=0.0; }
+    dvec3(double xx, double yy, double zz) {x=xx; y=yy; z=zz; }
+    dvec3 negative() { return dvec3 (-x, -y, -z); }
+    dvec3 vectAdd (dvec3 v) { return dvec3( x+v.x,  y+v.y,  z+v.z); }
+    dvec3 vectMult (double scalar) { return dvec3(x*scalar, y*scalar, z*scalar); }
+};
+
+class ivec3{
+  public:
+    int x, y, z;
+    ivec3() { x=0; y=0; z=0; }
+    ivec3(int xx, int yy, int zz) {x=xx; y=yy; z=zz;}
+    ivec3 negative() { return ivec3 (-x, -y, -z); }
+    ivec3 vectAdd (ivec3 v) { return ivec3( x+v.x, y+v.y, z+v.z);}
+    ivec3 vectAdd (dvec3 v) { return ivec3( (int)(x+v.x), (int)(y+v.y), (int)(z+v.z));}
+    ivec3 vectMult (double scalar) { return ivec3((int)x*scalar, (int)y*scalar, (int)z*scalar); }
+};
+
 const unsigned int width = 512;
 const unsigned int height = 512;
-dvec3 centerOfGravity;
+dvec3 centerOfGravity(0.0, 0.0, 0.0);
 
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
 /*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
@@ -19,11 +44,16 @@ class Boid {
     float r;
     dvec3 pos;
     dvec3 col;
-    Boid () { pos = dvec3(rand()%512, rand()%512, rand()%512); vel = dvec3(rand()%4-2, rand()%4-2, rand()%4-2); col = dvec3 ((rand()%10)/10.0, (rand()%10)/10.0, (rand()%10)/10.0); r=4; }
-    Boid (ivec3 position, ivec3 velocity, dvec3 color, float radius) { pos = position; vel = velocity; r = radius; col = color; }
+    Boid(){ r=4;
+            pos = dvec3(rand()%512, rand()%512, rand()%512); 
+            vel = dvec3(rand()%4-2, rand()%4-2, rand()%4-2); 
+            col = dvec3 ((rand()%10)/10.0, (rand()%10)/10.0, (rand()%10)/10.0);
+          }
+    Boid(ivec3 position, ivec3 velocity, dvec3 color, float radius) 
+          { pos = dvec3(position.x, position.y, position.z); vel = dvec3(velocity.x, velocity.y, velocity.z); r = radius; col = color; }
     void updatePos() { 
-    	vel = vel*0.999 + (centerOfGravity*0.002 - pos)*0.001;
-        pos = pos + vel;
+    	vel = (vel.vectMult(0.999)).vectAdd(((centerOfGravity.vectMult(0.002)).vectAdd(pos.negative())).vectMult(0.001));
+        pos = pos.vectAdd(vel);
         if (pos.x > 512) pos.x = pos.x - 512; if (pos.x < 0) pos.x = pos.x + 512;
         if (pos.y > 512) pos.y = pos.y - 512; if (pos.y < 0) pos.y = pos.y + 512;
         if (pos.z > 512) pos.z = pos.z - 512; if (pos.z < 0) pos.z = pos.z + 512;
@@ -56,7 +86,7 @@ int main (int argc, char *argv[]) {
 
 void update(void) {
 	centerOfGravity = dvec3(0.0, 0.0, 0.0);
-    for (int i=0; i<numBoids; i++) centerOfGravity = centerOfGravity + boids.at(i)->pos;
+    for (int i=0; i<numBoids; i++) centerOfGravity = centerOfGravity.vectAdd(boids.at(i)->pos);
     for (int i=0; i<numBoids; i++) boids.at(i)->updatePos();
     glutPostRedisplay();
 }
