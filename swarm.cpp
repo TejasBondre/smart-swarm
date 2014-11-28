@@ -12,7 +12,8 @@ const unsigned int height = 512;
 double timeStep = 1.0;
 GLfloat ctrlpoints[numBoids][3];
 int boidSize = 5;
-
+double zMove = 0.0, xMove = 0.0;
+double camzz = 1024.0, camxx = 0.0;
 class dvec3{
 public:
 	double x, y, z;
@@ -134,7 +135,10 @@ void render(void) {
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();  // glFrustum(-1.0, 1.0, -1.0, 1.0, 0.01, 512.0);
 	gluPerspective(45.0, 1.0, 0.0, 1.0);  				// parameters = (vertical FOV degrees, aspect ratio, near clipping, far clipping)
-	gluLookAt(0, 0, 1024.0,    0, 0, 255.0,   0.0, 1.0, 0.0);  // parameters = (eye x-y-z,  center x-y-z,  up_direction x-y-z)
+	camzz = camzz - zMove;
+	camxx = camxx - xMove;
+	gluLookAt(0, 0, camzz,    0, 0, 255.0,   0.0, 1.0, 0.0);  // parameters = (eye x-y-z,  center x-y-z,  up_direction x-y-z)
+
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	for (int i = 0; i<numBoids; i++) {
@@ -179,7 +183,6 @@ void render(void) {
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
 /*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
 
-double deltaMove = 0.0;
 double xDeltaAngle = 0.0;
 double yDeltaAngle = 0.0;
 int isDragging = 0;
@@ -207,7 +210,38 @@ void mouseButton(int button, int state, int xx, int yy) {
             isDragging = 0;
         }
     }
+    if (button == 3) { camzz = camzz - 15.0; }
+    if (button == 4) { camzz = camzz + 15.0; }
 }
+
+void pressKey(int key, int xx, int yy) {
+    switch (key) {
+        case GLUT_KEY_UP : 
+            glMatrixMode(GL_MODELVIEW);
+            glTranslatef(0, 0, 255);
+			glRotatef(9, 1, 0, 0);
+			glTranslatef(0, 0, -255);
+        break;
+        case GLUT_KEY_DOWN :
+            glMatrixMode(GL_MODELVIEW);
+            glTranslatef(0, 0, 255);
+			glRotatef(-9, 1, 0, 0);
+			glTranslatef(0, 0, -255);
+        break;
+        case GLUT_KEY_LEFT : 
+            glMatrixMode(GL_MODELVIEW);
+            glTranslatef(0, 0, 255);
+			glRotatef(9, 0, 1, 0);
+			glTranslatef(0, 0, -255);
+        break;
+        case GLUT_KEY_RIGHT : 
+            glMatrixMode(GL_MODELVIEW);
+            glTranslatef(0, 0, 255);
+			glRotatef(-9, 0, 1, 0);
+			glTranslatef(0, 0, -255);
+        break;
+    }
+} 
 
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
 /*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
@@ -226,6 +260,7 @@ int main(int argc, char *argv[]) {
 	glutIdleFunc(update);
     glutMouseFunc(mouseButton);
     glutMotionFunc(mouseMove);
+    glutSpecialFunc(pressKey);
 	glutMainLoop();
 	return 0;
 }
