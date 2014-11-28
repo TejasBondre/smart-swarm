@@ -5,10 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-//#include <glm/glm.hpp>
-//using namespace glm;
 using namespace std;
 const int numBoids = 100;
+const unsigned int width = 512;
+const unsigned int height = 512;
+double timeStep = 1.0;
+GLfloat ctrlpoints[numBoids][3];
+int boidSize = 5;
+
 class dvec3{
 public:
 	double x, y, z;
@@ -31,10 +35,6 @@ public:
 	ivec3 vectMult(double scalar) { return ivec3((int)x*scalar, (int)y*scalar, (int)z*scalar); }
 };
 
-const unsigned int width = 512;
-const unsigned int height = 512;
-double timeStep = 1.0;
-double speedLimit = 4;
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
 /*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
 
@@ -70,15 +70,20 @@ public:
 	}
 
 	void updateForces(vector <Boid*> boidArray) {
+		dvec3 force = dvec3(0,0,0);
+		dvec3 distanceFromCenter;
+		vector<Boid*> neighbours;
+		//++++ COHESION +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 		center = dvec3();
-		vector<Boid*> neighbours = getNeighbours(boidArray, pos, cohesionDist);
+		neighbours = getNeighbours(boidArray, pos, cohesionDist);
 		for (int j = 0; j< neighbours.size(); j++) {
 			center = center.vectAdd(neighbours[j]->pos);
 		}
-		center = center.vectMult(1/(double)neighbours.size());
-		dvec3 distanceFromCenter = center.vectAdd(pos.negative());
-		dvec3 force = distanceFromCenter.vectMult(cohesionRatio);
-		//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+		center = center.vectMult(1 / (double)neighbours.size());
+		distanceFromCenter = center.vectAdd(pos.negative());
+		force = force.vectAdd(distanceFromCenter.vectMult(cohesionRatio));
+
+		//++++ SEPARATION +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 		center = dvec3();
 		neighbours = getNeighbours(boidArray, pos, separationDist);
 		for (int j = 0; j< neighbours.size(); j++) {
@@ -87,39 +92,125 @@ public:
 		center = center.vectMult(1 / (double)neighbours.size());
 		distanceFromCenter = center.vectAdd(pos.negative());
 		force = force.vectAdd(distanceFromCenter.vectMult(separationRatio));
+
+		//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 		vel = vel.vectAdd(force.vectMult(timeStep));
 	}
 
 	void alignVel(vector<Boid*> boidArray) {
-		dvec3 avgVel = dvec3();
-		vector<Boid*> neighbours = getNeighbours(boidArray, pos, alignmentDist);
+		dvec3 avgVel = dvec3(0, 0, 0);
+		dvec3 velocityDifference;
+		vector<Boid*> neighbours;
+		//++++ ALIGNMENT ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+		avgVel = dvec3();
+		neighbours = getNeighbours(boidArray, pos, alignmentDist);
 		for (int j = 0; j< neighbours.size(); j++) {
 			avgVel = avgVel.vectAdd(neighbours[j]->vel);
 		}
 		avgVel = avgVel.vectMult(1 / (double)neighbours.size());
-		double speed = vel.length();
-		if(speed>4) speed=4;
-		vel = vel.vectAdd(avgVel.vectMult(alignmentRatio));
-		vel = vel.vectMult(speed / (vel.length()));
+		velocityDifference = avgVel.vectAdd(vel.negative());
+		vel = vel.vectAdd(velocityDifference.vectMult(alignmentRatio));
+
+		//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 		updatePos();
 	}
 
 	void updatePos(void){ 
 		pos = pos.vectAdd(vel.vectMult(timeStep)); 
-		/* if (pos.x > 512) pos.x = pos.x - 512; if (pos.x < 0) pos.x = pos.x + 512;
-		if (pos.y > 512) pos.y = pos.y - 512; if (pos.y < 0) pos.y = pos.y + 512;
-		if (pos.z > 512) pos.z = pos.z - 512; if (pos.z < 0) pos.z = pos.z + 512; */
 	}
 };
+vector <Boid*> boids;
 
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
 /*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
 
+void update(void) {
+	for (int i = 0; i<numBoids; i++) boids.at(i)->updateForces(boids);
+	for (int i = 0; i<numBoids; i++) boids.at(i)->alignVel(boids);
+	glutPostRedisplay();
+}
 
-vector <Boid*> boids;
-void render(void);
-void update(void);
-GLfloat ctrlpoints[numBoids][3];
+void render(void) {
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();  // glFrustum(-1.0, 1.0, -1.0, 1.0, 0.01, 512.0);
+	gluPerspective(45.0, 1.0, 0.0, 1.0);  				// parameters = (vertical FOV degrees, aspect ratio, near clipping, far clipping)
+	gluLookAt(0, 0, 1024.0,    0, 0, 255.0,   0.0, 1.0, 0.0);  // parameters = (eye x-y-z,  center x-y-z,  up_direction x-y-z)
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	for (int i = 0; i<numBoids; i++) {
+		ctrlpoints[i][0] = (((int)(boids.at(i)->pos.x)) % 512) - 256;  if(ctrlpoints[i][0] < -256.0) ctrlpoints[i][0]=ctrlpoints[i][0] +512.0;
+		ctrlpoints[i][1] = (((int)(boids.at(i)->pos.y)) % 512) - 256;  if(ctrlpoints[i][1] < -256.0) ctrlpoints[i][1]=ctrlpoints[i][1] +512.0;
+		ctrlpoints[i][2] = ((int)(boids.at(i)->pos.z)) % 512;          if(ctrlpoints[i][2] < 0)      ctrlpoints[i][2]=ctrlpoints[i][2] +512.0;
+
+		glColor3f(boids.at(i)->col.x, boids.at(i)->col.y, boids.at(i)->col.z);
+		glBegin(GL_TRIANGLES);
+		glVertex3f(ctrlpoints[i][0]-boidSize, ctrlpoints[i][1]-boidSize, ctrlpoints[i][2]);
+		glVertex3f(ctrlpoints[i][0]+boidSize, ctrlpoints[i][1]-boidSize, ctrlpoints[i][2]);
+		glVertex3f(ctrlpoints[i][0]-boidSize, ctrlpoints[i][1]+boidSize, ctrlpoints[i][2]);
+		glEnd();
+
+		glLineWidth(1.0);
+		if(1) {		// display bounding box
+			glColor3f(1.0, 0.0, 0.0);
+			glBegin(GL_LINES); glVertex3f(-256, 256, 0);    glVertex3f(256, 256, 0);  glEnd();
+			glBegin(GL_LINES); glVertex3f(-256, -256, 0);      glVertex3f(256, -256, 0);    glEnd();
+			glBegin(GL_LINES); glVertex3f(-256, 256, 0);    glVertex3f(-256, -256, 0);      glEnd();
+			glBegin(GL_LINES); glVertex3f(256, 256, 0);  glVertex3f(256, -256, 0);    glEnd();
+			glColor3f(0.0, 1.0, 0.0);
+			glBegin(GL_LINES); glVertex3f(-256, 256, 0);    glVertex3f(-256, 256, 512);  glEnd();
+			glBegin(GL_LINES); glVertex3f(-256, -256, 0);      glVertex3f(-256, -256, 512);    glEnd();
+			glBegin(GL_LINES); glVertex3f(256, -256, 0);    glVertex3f(256, -256, 512);  glEnd();
+			glBegin(GL_LINES); glVertex3f(256, 256, 0);  glVertex3f(256, 256, 512);glEnd();
+			glColor3f(0.0, 0.0, 1.0);
+			glBegin(GL_LINES); glVertex3f(-256, 256, 512);  glVertex3f(256, 256, 512);glEnd();
+			glBegin(GL_LINES); glVertex3f(-256, -256, 512);    glVertex3f(256, -256, 512);  glEnd();
+			glBegin(GL_LINES); glVertex3f(-256, 256, 512);  glVertex3f(-256, -256, 512);    glEnd();
+			glBegin(GL_LINES); glVertex3f(256, 256, 512);glVertex3f(256, -256, 512);  glEnd();
+		}
+		else {		// display co-ordinate axes
+			glColor3f(1.0, 0.0, 0.0); glBegin(GL_LINES); glVertex3f(256, 0, 0); glVertex3f(-256, 0, 0); glEnd();
+			glColor3f(0.0, 1.0, 0.0); glBegin(GL_LINES); glVertex3f(0, 256, 0); glVertex3f(0, -256, 0); glEnd();
+			glColor3f(0.0, 0.0, 1.0); glBegin(GL_LINES); glVertex3f(0, 0, 512); glVertex3f(0, 0, 0); glEnd();
+		}
+	}
+	glFlush();
+}
+
+/*||||| insert comment here to describe next logical code block. if no description |||||*/
+/*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
+
+double deltaMove = 0.0;
+double xDeltaAngle = 0.0;
+double yDeltaAngle = 0.0;
+int isDragging = 0;
+int xDragStart = 0;
+int yDragStart = 0;
+void mouseMove(int xx, int yy) {
+    if (isDragging) {
+        xDeltaAngle = (xx - xDragStart) * 0.5;
+        yDeltaAngle = (yy - yDragStart) * 0.5;
+    }
+}
+void mouseButton(int button, int state, int xx, int yy) {
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            isDragging = 1;
+            xDragStart = xx;
+            yDragStart = yy;
+        }
+        else  {
+            glMatrixMode(GL_MODELVIEW);
+            glTranslatef(0, 0, 255);
+			glRotatef(xDeltaAngle, 0, 1, 0);
+			glRotatef(yDeltaAngle, 1, 0, 0);
+			glTranslatef(0, 0, -255);
+            isDragging = 0;
+        }
+    }
+}
+
+/*||||| insert comment here to describe next logical code block. if no description |||||*/
+/*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
 
 int main(int argc, char *argv[]) {
 	srand (time(NULL));
@@ -133,33 +224,10 @@ int main(int argc, char *argv[]) {
 	glShadeModel(GL_FLAT);
 	glutDisplayFunc(render);
 	glutIdleFunc(update);
+    glutMouseFunc(mouseButton);
+    glutMotionFunc(mouseMove);
 	glutMainLoop();
 	return 0;
-}
-
-/*||||| insert comment here to describe next logical code block. if no description |||||*/
-/*||||| - yet, then retain this comment as a separator to make code reading easier |||||*/
-
-void update(void) {
-	for (int i = 0; i<numBoids; i++) boids.at(i)->updateForces(boids);
-	for (int i = 0; i<numBoids; i++) boids.at(i)->alignVel(boids);
-	glutPostRedisplay();
-}
-
-void render(void) {
-	glClear(GL_COLOR_BUFFER_BIT);
-	for (int i = 0; i<numBoids; i++) {
-		ctrlpoints[i][0] = ((((int)(boids.at(i)->pos.x)) % 512) - 256) / 256.0;
-		ctrlpoints[i][1] = ((((int)(boids.at(i)->pos.y)) % 512) - 256) / 256.0;
-		ctrlpoints[i][2] = ((((int)(boids.at(i)->pos.z)) % 512) - 256) / 256.0;
-		for (int j=0; j<3; j++) if(ctrlpoints[i][j] < -1.0) ctrlpoints[i][j]=ctrlpoints[i][j] +2.0;
-		glPointSize(2*((512 - boids.at(i)->pos.z) / 512));
-		glColor3f(boids.at(i)->col.x, boids.at(i)->col.y, boids.at(i)->col.z);
-		glBegin(GL_POINTS);
-		glVertex3fv(&ctrlpoints[i][0]);
-		glEnd();
-	}
-	glFlush();
 }
 
 /*||||| insert comment here to describe next logical code block. if no description |||||*/
